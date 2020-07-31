@@ -1,4 +1,4 @@
-# Blackbox Chromedp exporter
+# Blackbox exporter support Chromedp
 [Docker Image](https://hub.docker.com/r/kyos0109/blackbox-chromedp-exporter)
 
 The blackbox exporter allows blackbox probing of endpoints over
