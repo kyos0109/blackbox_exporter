@@ -1,11 +1,7 @@
-# Blackbox exporter [![Build Status](https://travis-ci.org/prometheus/blackbox_exporter.svg)][travis]
-
-[![CircleCI](https://circleci.com/gh/prometheus/blackbox_exporter/tree/master.svg?style=shield)][circleci]
-[![Docker Repository on Quay](https://quay.io/repository/prometheus/blackbox-exporter/status)][quay]
-[![Docker Pulls](https://img.shields.io/docker/pulls/prom/blackbox-exporter.svg?maxAge=604800)][hub]
+# Blackbox Chromedp exporter
 
 The blackbox exporter allows blackbox probing of endpoints over
-HTTP, HTTPS, DNS, TCP and ICMP.
+HTTP, HTTPS, DNS, TCP, ICMP and Chromedp.
 
 ## Running this software
 
@@ -104,8 +100,3 @@ The ICMP probe requires elevated privileges to function:
     blackbox_exporter`
 * *BSD*: root user is required.
 * *OS X*: No additional privileges are needed.
-
-[circleci]: https://circleci.com/gh/prometheus/blackbox_exporter
-[hub]: https://hub.docker.com/r/prom/blackbox-exporter/
-[travis]: https://travis-ci.org/prometheus/blackbox_exporter
-[quay]: https://quay.io/repository/prometheus/blackbox-exporter
