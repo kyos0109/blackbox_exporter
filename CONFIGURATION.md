@@ -257,7 +257,7 @@ validate_additional_rrs:
 ### <chromedp_config>
 
 ```yml
-Enable remote chrome debug.
+# Enable remote chrome debug.
 [ remote: <bool> | default = false ]
 
 # Remote chrome debug websocket url.
