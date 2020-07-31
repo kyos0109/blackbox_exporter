@@ -31,3 +31,12 @@ modules:
       - expect: "^:[^ ]+ 001"
   icmp:
     prober: icmp
+  http_chromedp:
+    prober: chromedp
+    chromedp:
+      remote: true
+      ignoreMediaFile: true
+      chromedp_ws: 'ws://127.0.0.1:3000/devtools/page/BROWSERLESSUS4HIBJVJAZBF6X6QXSQ3'
+      body_wait_dom_load: '#app'
+      response_latency_ms: 500
+      chromedp_wait_time: 2s

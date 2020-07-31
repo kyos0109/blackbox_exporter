@@ -43,10 +43,11 @@ var (
 
 	// DefaultModule set default configuration for the Module
 	DefaultModule = Module{
-		HTTP: DefaultHTTPProbe,
-		TCP:  DefaultTCPProbe,
-		ICMP: DefaultICMPProbe,
-		DNS:  DefaultDNSProbe,
+		HTTP:     DefaultHTTPProbe,
+		TCP:      DefaultTCPProbe,
+		ICMP:     DefaultICMPProbe,
+		DNS:      DefaultDNSProbe,
+		Chromedp: DefaultChromedpProbe,
 	}
 
 	// DefaultHTTPProbe set default value for HTTPProbe
@@ -66,6 +67,10 @@ var (
 
 	// DefaultDNSProbe set default value for DNSProbe
 	DefaultDNSProbe = DNSProbe{
+		IPProtocolFallback: true,
+	}
+
+	DefaultChromedpProbe = ChromedpProbe{
 		IPProtocolFallback: true,
 	}
 )
@@ -115,12 +120,13 @@ func (sc *SafeConfig) ReloadConfig(confFile string) (err error) {
 }
 
 type Module struct {
-	Prober  string        `yaml:"prober,omitempty"`
-	Timeout time.Duration `yaml:"timeout,omitempty"`
-	HTTP    HTTPProbe     `yaml:"http,omitempty"`
-	TCP     TCPProbe      `yaml:"tcp,omitempty"`
-	ICMP    ICMPProbe     `yaml:"icmp,omitempty"`
-	DNS     DNSProbe      `yaml:"dns,omitempty"`
+	Prober   string        `yaml:"prober,omitempty"`
+	Timeout  time.Duration `yaml:"timeout,omitempty"`
+	HTTP     HTTPProbe     `yaml:"http,omitempty"`
+	TCP      TCPProbe      `yaml:"tcp,omitempty"`
+	ICMP     ICMPProbe     `yaml:"icmp,omitempty"`
+	DNS      DNSProbe      `yaml:"dns,omitempty"`
+	Chromedp ChromedpProbe `yaml:"chromedp,omitempty"`
 }
 
 type HTTPProbe struct {
@@ -140,6 +146,17 @@ type HTTPProbe struct {
 	FailIfHeaderNotMatchesRegexp []HeaderMatch           `yaml:"fail_if_header_not_matches,omitempty"`
 	Body                         string                  `yaml:"body,omitempty"`
 	HTTPClientConfig             config.HTTPClientConfig `yaml:"http_client_config,inline"`
+}
+
+type ChromedpProbe struct {
+	BodyWaitDOMLoad    string        `yaml:"body_wait_dom_load,omitempty"`
+	Remote             bool          `yaml:"remote,omitempty"`
+	ChromedpWS         string        `yaml:"chromedp_ws,omitempty"`
+	Headless           bool          `yaml:"headless,omitempty"`
+	IPProtocolFallback bool          `yaml:"ip_protocol_fallback,omitempty"`
+	IgnoreMediaFile    bool          `yaml:"ignoreMediaFile,omitempty"`
+	ResponseLatencyMS  float64       `yaml:"response_latency_ms,omitempty"`
+	ChromedpWaitTime   time.Duration `yaml:"chromedp_wait_time,omitempty"`
 }
 
 type HeaderMatch struct {

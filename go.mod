@@ -1,6 +1,8 @@
 module github.com/prometheus/blackbox_exporter
 
 require (
+	github.com/chromedp/cdproto v0.0.0-20200709115526-d1f6fc58448b
+	github.com/chromedp/chromedp v0.5.3
 	github.com/go-kit/kit v0.10.0
 	github.com/miekg/dns v1.1.29
 	github.com/pkg/errors v0.9.1
