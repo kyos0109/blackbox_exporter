@@ -7,7 +7,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
@@ -30,7 +29,7 @@ type MonitorInfo struct {
 	ResponseLatencyMS     float64
 }
 
-func runChromedpLocal(headless bool) (context.Context, context.CancelFunc) {
+func runChromedpLocal(pctx context.Context, headless bool) (context.Context, context.CancelFunc) {
 	dir, err := ioutil.TempDir("", "chromedp-wow")
 	if err != nil {
 		panic(err)
@@ -45,11 +44,11 @@ func runChromedpLocal(headless bool) (context.Context, context.CancelFunc) {
 		chromedp.UserDataDir(dir),
 	)
 
-	return chromedp.NewExecAllocator(context.Background(), opts...)
+	return chromedp.NewExecAllocator(pctx, opts...)
 }
 
-func runChromedpRemote(ws *string) (context.Context, context.CancelFunc) {
-	return chromedp.NewRemoteAllocator(context.Background(), *ws)
+func runChromedpRemote(pctx context.Context, ws *string) (context.Context, context.CancelFunc) {
+	return chromedp.NewRemoteAllocator(pctx, *ws)
 }
 
 func ProbeChromedp(ctx context.Context, target string, module config.Module, registry *prometheus.Registry, logger log.Logger) (success bool) {
@@ -116,11 +115,11 @@ func ProbeChromedp(ctx context.Context, target string, module config.Module, reg
 	switch cdpConfig.Remote && len(webSocketURL) > 3 {
 	case true:
 		level.Info(logger).Log("Use remote Chrome ->", webSocketURL)
-		ctx, cancel = runChromedpRemote(&webSocketURL)
+		ctx, cancel = runChromedpRemote(ctx, &webSocketURL)
 		defer cancel()
 	case false:
 		level.Info(logger).Log("Use local Chrome")
-		ctx, cancel = runChromedpLocal(cdpConfig.Headless)
+		ctx, cancel = runChromedpLocal(ctx, cdpConfig.Headless)
 		defer cancel()
 	default:
 		level.Error(logger).Log("Unknown Remote Option.")
@@ -128,9 +127,6 @@ func ProbeChromedp(ctx context.Context, target string, module config.Module, reg
 	}
 
 	ctx, cancel = chromedp.NewContext(ctx)
-	defer cancel()
-
-	ctx, cancel = context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	domTimer := prometheus.NewTimer(prometheus.ObserverFunc(domContentLatencyGauge.Set))
@@ -149,7 +145,7 @@ func ProbeChromedp(ctx context.Context, target string, module config.Module, reg
 			break
 		case *network.EventLoadingFailed:
 			m.EventLoadingFailed = ev.(*network.EventLoadingFailed)
-			if (cdpConfig.IgnoreMediaFile && m.EventLoadingFailed.Type == "Media") {
+			if cdpConfig.IgnoreMediaFile && m.EventLoadingFailed.Type == "Media" {
 				break
 			}
 			go m.networkEventLoadingFailed(
