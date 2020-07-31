@@ -253,3 +253,23 @@ validate_additional_rrs:
 [ server_name: <string> ]
 
 ```
+
+### <chromedp_config>
+
+```yml
+Enable remote chrome debug.
+[ remote: <bool> | default = false ]
+
+# Remote chrome debug websocket url.
+[ chromedp_ws: <string> ]
+
+# The chrome wait visible DOM, if empty, wait to timeout.
+[ body_wait_dom_load: <string> ]
+
+# The reponse latency than the this vaule, add to metric.
+[ response_latency_ms: <flot64> ]
+
+# The chrome all action was done, then wait to finish and close.
+[ chromedp_wait_time: <time.Duration> ]
+
+```
