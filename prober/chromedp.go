@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
@@ -27,6 +28,7 @@ type MonitorInfo struct {
 	EventResponseReceived *network.EventResponseReceived
 	CdpLog                *cdplog.EventEntryAdded
 	ResponseLatencyMS     float64
+	WaitGroup             sync.WaitGroup
 }
 
 func runChromedpLocal(pctx context.Context, headless bool) (context.Context, context.CancelFunc) {
@@ -53,10 +55,11 @@ func runChromedpRemote(pctx context.Context, ws *string) (context.Context, conte
 
 func ProbeChromedp(ctx context.Context, target string, module config.Module, registry *prometheus.Registry, logger log.Logger) (success bool) {
 	var (
-		cancel      context.CancelFunc
+		cancel context.CancelFunc
+		m      MonitorInfo
+		err    error
+
 		requestList = make(map[string]string)
-		m           MonitorInfo
-		err         error
 
 		durationGaugeVec = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "probe_http_requests_duration_seconds",
@@ -138,6 +141,7 @@ func ProbeChromedp(ctx context.Context, target string, module config.Module, reg
 		switch ev.(type) {
 		case *network.EventResponseReceived:
 			m.EventResponseReceived = ev.(*network.EventResponseReceived)
+			m.WaitGroup.Add(1)
 			go m.networkEventResponseReceived(
 				cancel,
 				errorStatusGaugeVec,
@@ -148,15 +152,19 @@ func ProbeChromedp(ctx context.Context, target string, module config.Module, reg
 			if cdpConfig.IgnoreMediaFile && m.EventLoadingFailed.Type == "Media" {
 				break
 			}
+			m.WaitGroup.Add(1)
 			go m.networkEventLoadingFailed(
 				otherErrorGaugeVec,
 				requestList[m.EventLoadingFailed.RequestID.String()])
 			cancel()
 			break
 		case *network.EventRequestWillBeSent:
-			r := ev.(*network.EventRequestWillBeSent)
-			requestList[r.RequestID.String()] = r.Request.URL
-			httpRequestCountter.WithLabelValues(r.Request.Method).Add(1)
+			m.WaitGroup.Add(1)
+			go func(r *network.EventRequestWillBeSent) {
+				requestList[r.RequestID.String()] = r.Request.URL
+				httpRequestCountter.WithLabelValues(r.Request.Method).Add(1)
+				defer m.WaitGroup.Done()
+			}(ev.(*network.EventRequestWillBeSent))
 			break
 		case *page.EventDomContentEventFired:
 			defer domTimer.ObserveDuration()
@@ -166,6 +174,7 @@ func ProbeChromedp(ctx context.Context, target string, module config.Module, reg
 			break
 		case *cdplog.EventEntryAdded:
 			m.CdpLog = ev.(*cdplog.EventEntryAdded)
+			m.WaitGroup.Add(1)
 			go m.cdplogEventEntryAdded(consoleMessageGaugeVec)
 			break
 		}
@@ -189,11 +198,15 @@ func ProbeChromedp(ctx context.Context, target string, module config.Module, reg
 		return false
 	}
 
+	m.WaitGroup.Wait()
+
 	success = true
 	return
 }
 
 func (m *MonitorInfo) cdplogEventEntryAdded(consoleMessageGaugeVec *prometheus.GaugeVec) {
+	defer m.WaitGroup.Done()
+
 	clog := *m.CdpLog.Entry
 
 	switch clog.Level {
@@ -208,6 +221,8 @@ func (m *MonitorInfo) cdplogEventEntryAdded(consoleMessageGaugeVec *prometheus.G
 }
 
 func (m *MonitorInfo) networkEventLoadingFailed(otherErrorGaugeVec *prometheus.GaugeVec, reqURL string) {
+	defer m.WaitGroup.Done()
+
 	level.Error(*m.Logger).Log(
 		"Site", m.URL.String(),
 		"RequestID", m.EventLoadingFailed.RequestID,
@@ -224,6 +239,7 @@ func (m *MonitorInfo) networkEventLoadingFailed(otherErrorGaugeVec *prometheus.G
 }
 
 func (m *MonitorInfo) networkEventResponseReceived(cancel context.CancelFunc, errorStatusGaugeVec, durationGaugeVec *prometheus.GaugeVec) {
+	defer m.WaitGroup.Done()
 
 	res := m.EventResponseReceived.Response
 	if res.ConnectionID != 0 && res.RemoteIPAddress != "" {
