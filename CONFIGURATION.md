@@ -260,6 +260,9 @@ validate_additional_rrs:
 # Enable remote chrome debug.
 [ remote: <bool> | default = false ]
 
+# Ignore media file
+[ ignoreMediaFile: <bool> ]
+
 # Remote chrome debug websocket url.
 [ chromedp_ws: <string> ]
 
