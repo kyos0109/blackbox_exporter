@@ -29,6 +29,8 @@ type MonitorInfo struct {
 	CdpLog                *cdplog.EventEntryAdded
 	ResponseLatencyMS     float64
 	WaitGroup             sync.WaitGroup
+	RequestList           map[string]string
+	sync.Mutex
 }
 
 func runChromedpLocal(pctx context.Context, headless bool) (context.Context, context.CancelFunc) {
@@ -58,8 +60,6 @@ func ProbeChromedp(ctx context.Context, target string, module config.Module, reg
 		cancel context.CancelFunc
 		m      MonitorInfo
 		err    error
-
-		requestList = make(map[string]string)
 
 		durationGaugeVec = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "probe_http_requests_duration_seconds",
@@ -136,6 +136,7 @@ func ProbeChromedp(ctx context.Context, target string, module config.Module, reg
 	loadTimer := prometheus.NewTimer(prometheus.ObserverFunc(loadContentLatencyGauge.Set))
 	m.Logger = &logger
 	m.ResponseLatencyMS = cdpConfig.ResponseLatencyMS
+	m.RequestList = make(map[string]string)
 
 	chromedp.ListenTarget(ctx, func(ev interface{}) {
 		switch ev.(type) {
@@ -154,14 +155,15 @@ func ProbeChromedp(ctx context.Context, target string, module config.Module, reg
 			}
 			m.WaitGroup.Add(1)
 			go m.networkEventLoadingFailed(
-				otherErrorGaugeVec,
-				requestList[m.EventLoadingFailed.RequestID.String()])
+				otherErrorGaugeVec)
 			cancel()
 			break
 		case *network.EventRequestWillBeSent:
 			m.WaitGroup.Add(1)
 			go func(r *network.EventRequestWillBeSent) {
-				requestList[r.RequestID.String()] = r.Request.URL
+				m.Lock()
+				defer m.Unlock()
+				m.RequestList[r.RequestID.String()] = r.Request.URL
 				httpRequestCountter.WithLabelValues(r.Request.Method).Add(1)
 				defer m.WaitGroup.Done()
 			}(ev.(*network.EventRequestWillBeSent))
@@ -220,8 +222,9 @@ func (m *MonitorInfo) cdplogEventEntryAdded(consoleMessageGaugeVec *prometheus.G
 	consoleMessageGaugeVec.WithLabelValues(clog.Level.String(), clog.Source.String(), clog.Text, clog.URL).Set(1)
 }
 
-func (m *MonitorInfo) networkEventLoadingFailed(otherErrorGaugeVec *prometheus.GaugeVec, reqURL string) {
+func (m *MonitorInfo) networkEventLoadingFailed(otherErrorGaugeVec *prometheus.GaugeVec) {
 	defer m.WaitGroup.Done()
+	reqURL := m.RequestList[m.EventLoadingFailed.RequestID.String()]
 
 	level.Error(*m.Logger).Log(
 		"Site", m.URL.String(),
