@@ -22,14 +22,15 @@ import (
 )
 
 type MonitorInfo struct {
-	URL                   *url.URL
-	Logger                *log.Logger
-	EventLoadingFailed    *network.EventLoadingFailed
-	EventResponseReceived *network.EventResponseReceived
-	CdpLog                *cdplog.EventEntryAdded
-	ResponseLatencyMS     float64
-	WaitGroup             sync.WaitGroup
-	RequestList           map[string]string
+	URL                    *url.URL
+	Logger                 *log.Logger
+	EventLoadingFailed     *network.EventLoadingFailed
+	EventResponseReceived  *network.EventResponseReceived
+	EventRequestWillBeSent *network.EventRequestWillBeSent
+	CdpLog                 *cdplog.EventEntryAdded
+	ResponseLatencyMS      float64
+	WaitGroup              sync.WaitGroup
+	RequestList            map[string]string
 	sync.Mutex
 }
 
@@ -154,19 +155,13 @@ func ProbeChromedp(ctx context.Context, target string, module config.Module, reg
 				break
 			}
 			m.WaitGroup.Add(1)
-			go m.networkEventLoadingFailed(
-				otherErrorGaugeVec)
+			go m.networkEventLoadingFailed(otherErrorGaugeVec)
 			cancel()
 			break
 		case *network.EventRequestWillBeSent:
 			m.WaitGroup.Add(1)
-			go func(r *network.EventRequestWillBeSent) {
-				m.Lock()
-				defer m.Unlock()
-				m.RequestList[r.RequestID.String()] = r.Request.URL
-				httpRequestCountter.WithLabelValues(r.Request.Method).Add(1)
-				defer m.WaitGroup.Done()
-			}(ev.(*network.EventRequestWillBeSent))
+			m.EventRequestWillBeSent = ev.(*network.EventRequestWillBeSent)
+			go m.networkEventRequestWillBeSent(httpRequestCountter)
 			break
 		case *page.EventDomContentEventFired:
 			defer domTimer.ObserveDuration()
@@ -204,6 +199,14 @@ func ProbeChromedp(ctx context.Context, target string, module config.Module, reg
 
 	success = true
 	return
+}
+
+func (m *MonitorInfo) networkEventRequestWillBeSent(httpRequestCountter *prometheus.CounterVec) {
+	defer m.WaitGroup.Done()
+	m.Lock()
+	defer m.Unlock()
+	m.RequestList[m.EventRequestWillBeSent.RequestID.String()] = m.EventRequestWillBeSent.Request.URL
+	httpRequestCountter.WithLabelValues(m.EventRequestWillBeSent.Request.Method).Add(1)
 }
 
 func (m *MonitorInfo) cdplogEventEntryAdded(consoleMessageGaugeVec *prometheus.GaugeVec) {
